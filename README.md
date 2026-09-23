@@ -14,6 +14,14 @@ A trade runs flat to flat: from zero position until the
 position returns to zero. A single execution can be split
 across two trades.
 
+Trade notes are linked to trades by the natural key
+ticker + opened_at, not by a running ID.
+Trades are rebuilt from executions, so a running ID
+points to a different trade after every rebuild —
+silently, with no error raised.
+The natural key is derived from the data itself and
+survives the rebuild.
+
 ## Stack
 
 Python, FastAPI, PostgreSQL, React, TypeScript

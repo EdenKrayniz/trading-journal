@@ -5,11 +5,13 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    # Throwaway Postgres for the tests; created before the steps, deleted at the end.
     services:
       postgres:
         image: postgres:18
         ports:
           - 5432:5432
+        # Steps start only after Postgres accepts connections, avoiding flaky tests.
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -18,10 +20,13 @@ jobs:
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: trading_journal
+    # Replaces the local .env file, which is never committed.
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/trading_journal
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      # Full version on purpose: since v8 this action publishes no major-only tags,
+      # and immutable tags protect against a tag being moved to malicious code.
+      - uses: astral-sh/setup-uv@v10.3.0
       - run: uv sync
       - run: uv run python -m pytest

@@ -29,4 +29,9 @@ jobs:
       # and immutable tags protect against a tag being moved to malicious code.
       - uses: astral-sh/setup-uv@v10.3.0
       - run: uv sync
+      # Style checks only report, never fix: fixes on this throwaway machine would be lost.
+      # They run before the tests because they take a fraction of a second.
+      - run: uv run ruff check .
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
       - run: uv run python -m pytest

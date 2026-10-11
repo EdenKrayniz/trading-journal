@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+
 from app.main import app
 
 
@@ -22,12 +23,10 @@ def test_health_db():
 def test_health_db_failure(monkeypatch):
     # Nothing listens on port 5999, so the connection is refused.
     # This simulates the database being down.
-    monkeypatch.setenv("DATABASE_URL", "postgresql://postgres@localhost:5999/trading_journal")
+    monkeypatch.setenv(
+        "DATABASE_URL", "postgresql://postgres@localhost:5999/trading_journal"
+    )
     client = TestClient(app)
     response = client.get("/health/db")
     assert response.status_code == 503
     assert response.json() == {"detail": "Database connection error"}
-
-
-   
-    

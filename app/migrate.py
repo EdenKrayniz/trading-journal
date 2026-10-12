@@ -2,7 +2,6 @@ import os
 
 import psycopg
 
-
 with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
     # Created here, not in a migration: the tool must read this table to decide what to run.
     conn.execute(

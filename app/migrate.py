@@ -12,7 +12,7 @@ with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         );
         """
     )
-    rows = conn.execute("SELECT filename  FROM schema_migrations;").fetchall()
+    rows = conn.execute("SELECT filename FROM schema_migrations;").fetchall()
     already_applied = set()
     for row in rows:
         already_applied.add(row[0])
@@ -21,5 +21,12 @@ with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
     # os.listdir returns names in arbitrary order, so we sort them ourselves.
     # Zero-padded numbers (001, 002, ...) make string order match run order.
     ordered_names = sorted(names)
-    print("Found migrations:", ordered_names)
+    # Only .sql files are migrations; macOS may add others (e.g. .DS_Store)
+    # that would crash the tool when sent to the database.
+    ordered_names_sql = []
+    for name in ordered_names:
+        if name.endswith(".sql"):
+            ordered_names_sql.append(name)
+
+    print("Found migrations:", ordered_names_sql)
     print("Connected to the database successfully.")

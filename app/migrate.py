@@ -8,6 +8,8 @@ import os
 
 import psycopg
 
+# The whole run is one transaction: if any migration fails,
+# nothing from this run is saved, including earlier migrations.
 with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
     # Make sure the tool's own table of applied migrations exists.
     # Created here, not in a migration: the tool must read this table to decide what to run.

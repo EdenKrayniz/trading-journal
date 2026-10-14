@@ -32,6 +32,8 @@ jobs:
       # Style checks only report, never fix: fixes on this throwaway machine would be lost.
       # They run before the tests because they take a fraction of a second.
       - run: uv run ruff check .
-      - run: uv run ruff check .
       - run: uv run ruff format --check .
+      # Build the schema on the empty database: a broken migration fails here,
+      # before deploy, and the tests get the tables they need.
+      - run: uv run python -m app.migrate
       - run: uv run python -m pytest

@@ -25,3 +25,32 @@ survives the rebuild.
 ## Stack
 
 Python, FastAPI, PostgreSQL, React, TypeScript
+
+## Database migrations
+
+The schema is managed as numbered SQL files in `migrations/`,
+applied by a small runner in `app/migrate.py`. It was written by hand
+instead of using Alembic, to understand every step; switch to Alembic
+when there are several developers or servers.
+
+- File names: a three-digit number and an imperative description,
+  e.g. `001_create_executions.sql`. Files run in name order.
+- Once a file has run on any database, never edit it. Every change is a new file.
+- Each database records the files it has run in `schema_migrations`,
+  so every file runs once per database.
+- A run is one transaction: if any file fails, nothing from that run is saved.
+
+Run locally (reads `DATABASE_URL` from `.env`):
+
+```
+uv run --env-file .env python -m app.migrate
+```
+
+Runs automatically:
+
+- CI: on every push, on an empty throwaway database, before the tests.
+- Render: at the end of the build command, on every deploy:
+
+```
+uv sync --frozen --no-dev && uv cache prune --ci && uv run --no-dev python -m app.migrate
+```

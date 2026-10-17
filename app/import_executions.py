@@ -40,43 +40,49 @@ def convert_row_to_execution(row):
     }
 
 
-# The connection block is one transaction: if any row fails, nothing from
-# this file is saved, so after a fix the whole file can simply be run again.
-with psycopg.connect(os.environ["DATABASE_URL"]) as conn, open(sys.argv[1], "r") as f:
-    reader = csv.DictReader(f)
-    change_counter = 0
-    for row in reader:
-        # CASH rows are currency conversions (USD.ILS), not stock trades.
-        if row["AssetClass"] == "STK":
-            execution = convert_row_to_execution(row)
-            # Each report covers the last 365 days and repeats imported rows,
-            # so existing executions are skipped instead of failing the file.
-            changes = conn.execute(
-                """
-                INSERT INTO executions (
-                    executed_at,
-                    broker_exec_id,
-                    ticker,
-                    quantity,
-                    price,
-                    commission,
-                    currency
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s
+# Run the import only when this file is executed directly, so tests can
+# import convert_row_to_execution without a database or a report file.
+if __name__ == "__main__":
+    # The connection block is one transaction: if any row fails, nothing from
+    # this file is saved, so after a fix the whole file can simply be run again.
+    with (
+        psycopg.connect(os.environ["DATABASE_URL"]) as conn,
+        open(sys.argv[1], "r") as f,
+    ):
+        reader = csv.DictReader(f)
+        change_counter = 0
+        for row in reader:
+            # CASH rows are currency conversions (USD.ILS), not stock trades.
+            if row["AssetClass"] == "STK":
+                execution = convert_row_to_execution(row)
+                # Each report covers the last 365 days and repeats imported rows,
+                # so existing executions are skipped instead of failing the file.
+                changes = conn.execute(
+                    """
+                    INSERT INTO executions (
+                        executed_at,
+                        broker_exec_id,
+                        ticker,
+                        quantity,
+                        price,
+                        commission,
+                        currency
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s
+                    )
+                    ON CONFLICT (broker_exec_id) DO NOTHING;
+                    """,
+                    (
+                        execution["executed_at"],
+                        execution["broker_exec_id"],
+                        execution["ticker"],
+                        execution["quantity"],
+                        execution["price"],
+                        execution["commission"],
+                        execution["currency"],
+                    ),
                 )
-                ON CONFLICT (broker_exec_id) DO NOTHING;
-                """,
-                (
-                    execution["executed_at"],
-                    execution["broker_exec_id"],
-                    execution["ticker"],
-                    execution["quantity"],
-                    execution["price"],
-                    execution["commission"],
-                    execution["currency"],
-                ),
-            )
-            change_counter += changes.rowcount
+                change_counter += changes.rowcount
 
-# Printed after the block, because rows are saved only when it ends.
-print(f"Imported {change_counter} new executions.")
+    # Printed after the block, because rows are saved only when it ends.
+    print(f"Imported {change_counter} new executions.")

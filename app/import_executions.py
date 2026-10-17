@@ -14,6 +14,12 @@ from zoneinfo import ZoneInfo
 import psycopg
 
 
+def is_stock_row(row):
+    """Return True if the row is a stock execution, False if not."""
+    # CASH rows are currency conversions (USD.ILS), not stock trades.
+    return row["AssetClass"] == "STK"
+
+
 def convert_row_to_execution(row):
     """Convert a CSV row to a dict of values for the executions table."""
     # The broker reports New York local time. A named zone, not a fixed
@@ -41,7 +47,7 @@ def convert_row_to_execution(row):
 
 
 # Run the import only when this file is executed directly, so tests can
-# import convert_row_to_execution without a database or a report file.
+# import its functions without a database or a report file.
 if __name__ == "__main__":
     # The connection block is one transaction: if any row fails, nothing from
     # this file is saved, so after a fix the whole file can simply be run again.
@@ -52,8 +58,7 @@ if __name__ == "__main__":
         reader = csv.DictReader(f)
         change_counter = 0
         for row in reader:
-            # CASH rows are currency conversions (USD.ILS), not stock trades.
-            if row["AssetClass"] == "STK":
+            if is_stock_row(row):
                 execution = convert_row_to_execution(row)
                 # Each report covers the last 365 days and repeats imported rows,
                 # so existing executions are skipped instead of failing the file.

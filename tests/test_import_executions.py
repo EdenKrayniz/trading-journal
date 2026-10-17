@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from app.import_executions import convert_row_to_execution
+from app.import_executions import convert_row_to_execution, is_stock_row
 
 row = {
     "DateTime": "20240101;123456",
@@ -34,3 +34,13 @@ def test_right_time_summer():
     assert execution["executed_at"] == datetime(
         2024, 7, 1, 16, 34, 56, tzinfo=ZoneInfo("UTC")
     )
+
+
+def test_is_stock_row_true():
+    stock_row = {"AssetClass": "STK"}
+    assert is_stock_row(stock_row) is True
+
+
+def test_is_stock_row_false():
+    cash_row = {"AssetClass": "CASH"}
+    assert is_stock_row(cash_row) is False

@@ -54,3 +54,49 @@ Runs automatically:
 ```
 uv sync --frozen --no-dev && uv cache prune --ci && uv run --no-dev python -m app.migrate
 ```
+
+## Importing executions
+
+Executions come from an Interactive Brokers Flex Query, not the regular activity
+statement: the regular statement has no per-execution ID, and two executions can
+share the same symbol and time to the second.
+
+### Create the Flex Query (once)
+
+In the IBKR portal: Performance & Reports > Statements > Flex Queries.
+Create an Activity Flex Query with:
+
+- Section: Trades, with the Execution option (one row per execution)
+- Fields: AssetClass, IBCommission, TradePrice, Symbol, CurrencyPrimary,
+  DateTime, Quantity, IBExecID
+- Format: CSV
+- Period: Last 365 Calendar Days
+- Date and time: keep the defaults (date `yyyyMMdd`, time `HHmmss`,
+  separator `;`), because the importer parses exactly that format
+
+The importer reads every field above by name. If one is missing, it stops with a
+KeyError and nothing from the file is saved.
+
+### Download and store the report
+
+Run the query and download the CSV. Save it outside the repository, in
+`~/Documents/trading-data`: it contains real executions, and a file inside the
+repository could be pushed to GitHub.
+
+### Run the import
+
+From the project root:
+
+```
+uv run --env-file .env python -m app.import_executions ~/Documents/trading-data/<report>.csv
+```
+
+Instead of typing the path, type the command up to the final space and drag the
+file into the terminal window.
+
+- Only stock rows (`STK`) are imported. `CASH` rows are currency conversions.
+- Each report repeats the last 365 days, so executions already in the database
+  are skipped. Running the same report twice is safe.
+- The whole file is one transaction: if any row fails, nothing from the file is
+  saved. Fix the problem and run the same file again.
+- At the end, the importer prints how many new executions were added.

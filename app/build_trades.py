@@ -12,20 +12,24 @@ def split_commission(allocated_quantity, quantity, commission):
     return first_commission, second_commission
 
 
-def make_link(execution, allocated_quantity):
+def make_link(execution, allocated_quantity, allocated_commission):
     """Return the link row for the part of an execution that goes to one trade."""
-    link = {"execution_id": execution["id"], "allocated_quantity": allocated_quantity}
+    link = {
+        "execution_id": execution["id"],
+        "allocated_quantity": allocated_quantity,
+        "allocated_commission": allocated_commission,
+    }
     return link
 
 
-def make_trade(execution, quantity):
+def make_trade(execution, quantity, commission):
     """Return a new open trade, starting with this execution's part of it."""
     opened_at = execution["executed_at"]
     if quantity > 0:
         direction = "long"
     else:
         direction = "short"
-    link = make_link(execution, quantity)
+    link = make_link(execution, quantity, commission)
     links = [link]
     trade = {
         "ticker": execution["ticker"],
@@ -52,12 +56,13 @@ def build_trades(executions):
             previous_ticker = execution["ticker"]
         position_before = position
         position_after = position_before + execution["quantity"]
+        commission = execution["commission"]
         if position_before == 0:
-            open_trade = make_trade(execution, position_after)
+            open_trade = make_trade(execution, position_after, commission)
 
         elif position_after == 0:
             open_trade["closed_at"] = execution["executed_at"]
-            link = make_link(execution, execution["quantity"])
+            link = make_link(execution, execution["quantity"], commission)
             open_trade["links"].append(link)
             trades.append(open_trade)
             open_trade = None
@@ -65,14 +70,17 @@ def build_trades(executions):
         elif (position_before > 0 and position_after < 0) or (
             position_before < 0 and position_after > 0
         ):
-            link = make_link(execution, -position_before)
+            commission_for_closed_trade, commission_for_new_trade = split_commission(
+                -position_before, execution["quantity"], commission
+            )
+            link = make_link(execution, -position_before, commission_for_closed_trade)
             open_trade["closed_at"] = execution["executed_at"]
             open_trade["links"].append(link)
             trades.append(open_trade)
-            open_trade = make_trade(execution, position_after)
+            open_trade = make_trade(execution, position_after, commission_for_new_trade)
 
         else:
-            link = make_link(execution, execution["quantity"])
+            link = make_link(execution, execution["quantity"], commission)
             open_trade["links"].append(link)
         position = position_after
 

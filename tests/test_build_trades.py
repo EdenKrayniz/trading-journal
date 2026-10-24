@@ -37,10 +37,34 @@ time_4 = datetime(2026, 3, 2, 13, 0, tzinfo=ZoneInfo("America/New_York"))
 
 def test_build_trades_simple_trade():
     executions = [
-        {"id": 1, "ticker": "AAPL", "executed_at": time_1, "quantity": Decimal(10)},
-        {"id": 2, "ticker": "AAPL", "executed_at": time_2, "quantity": Decimal(-5)},
-        {"id": 3, "ticker": "AAPL", "executed_at": time_3, "quantity": Decimal(5)},
-        {"id": 4, "ticker": "AAPL", "executed_at": time_4, "quantity": Decimal(-10)},
+        {
+            "id": 1,
+            "ticker": "AAPL",
+            "executed_at": time_1,
+            "quantity": Decimal(10),
+            "commission": Decimal("2.50"),
+        },
+        {
+            "id": 2,
+            "ticker": "AAPL",
+            "executed_at": time_2,
+            "quantity": Decimal(-5),
+            "commission": Decimal("2.50"),
+        },
+        {
+            "id": 3,
+            "ticker": "AAPL",
+            "executed_at": time_3,
+            "quantity": Decimal(5),
+            "commission": Decimal("2.50"),
+        },
+        {
+            "id": 4,
+            "ticker": "AAPL",
+            "executed_at": time_4,
+            "quantity": Decimal(-10),
+            "commission": Decimal("2.50"),
+        },
     ]
     trades = build_trades(executions)
     assert len(trades) == 1
@@ -50,18 +74,46 @@ def test_build_trades_simple_trade():
     assert trade["closed_at"] == time_4
     assert trade["direction"] == "long"
     expected_links = [
-        {"execution_id": 1, "allocated_quantity": Decimal(10)},
-        {"execution_id": 2, "allocated_quantity": Decimal(-5)},
-        {"execution_id": 3, "allocated_quantity": Decimal(5)},
-        {"execution_id": 4, "allocated_quantity": Decimal(-10)},
+        {
+            "execution_id": 1,
+            "allocated_quantity": Decimal(10),
+            "allocated_commission": Decimal("2.50"),
+        },
+        {
+            "execution_id": 2,
+            "allocated_quantity": Decimal(-5),
+            "allocated_commission": Decimal("2.50"),
+        },
+        {
+            "execution_id": 3,
+            "allocated_quantity": Decimal(5),
+            "allocated_commission": Decimal("2.50"),
+        },
+        {
+            "execution_id": 4,
+            "allocated_quantity": Decimal(-10),
+            "allocated_commission": Decimal("2.50"),
+        },
     ]
     assert trade["links"] == expected_links
 
 
 def test_build_trades_crossing_zero():
     executions = [
-        {"id": 1, "ticker": "AAPL", "executed_at": time_1, "quantity": Decimal(10)},
-        {"id": 2, "ticker": "AAPL", "executed_at": time_2, "quantity": Decimal(-15)},
+        {
+            "id": 1,
+            "ticker": "AAPL",
+            "executed_at": time_1,
+            "quantity": Decimal(10),
+            "commission": Decimal("2.50"),
+        },
+        {
+            "id": 2,
+            "ticker": "AAPL",
+            "executed_at": time_2,
+            "quantity": Decimal(-15),
+            "commission": Decimal("2.50"),
+        },
     ]
     trades = build_trades(executions)
     assert len(trades) == 2
@@ -71,8 +123,16 @@ def test_build_trades_crossing_zero():
     assert trade_1["closed_at"] == time_2
     assert trade_1["direction"] == "long"
     expected_first_links = [
-        {"execution_id": 1, "allocated_quantity": Decimal(10)},
-        {"execution_id": 2, "allocated_quantity": Decimal(-10)},
+        {
+            "execution_id": 1,
+            "allocated_quantity": Decimal(10),
+            "allocated_commission": Decimal("2.50"),
+        },
+        {
+            "execution_id": 2,
+            "allocated_quantity": Decimal(-10),
+            "allocated_commission": Decimal("1.67"),
+        },
     ]
     assert trade_1["links"] == expected_first_links
     trade_2 = trades[1]
@@ -80,14 +140,32 @@ def test_build_trades_crossing_zero():
     assert trade_2["opened_at"] == time_2
     assert trade_2["closed_at"] is None
     assert trade_2["direction"] == "short"
-    expected_second_links = [{"execution_id": 2, "allocated_quantity": Decimal(-5)}]
+    expected_second_links = [
+        {
+            "execution_id": 2,
+            "allocated_quantity": Decimal(-5),
+            "allocated_commission": Decimal("0.83"),
+        }
+    ]
     assert trade_2["links"] == expected_second_links
 
 
 def test_build_trades_ticker_change():
     executions = [
-        {"id": 1, "ticker": "AAPL", "executed_at": time_1, "quantity": Decimal(10)},
-        {"id": 2, "ticker": "MSFT", "executed_at": time_2, "quantity": Decimal(5)},
+        {
+            "id": 1,
+            "ticker": "AAPL",
+            "executed_at": time_1,
+            "quantity": Decimal(10),
+            "commission": Decimal("2.50"),
+        },
+        {
+            "id": 2,
+            "ticker": "MSFT",
+            "executed_at": time_2,
+            "quantity": Decimal(5),
+            "commission": Decimal("2.50"),
+        },
     ]
     trades = build_trades(executions)
     assert len(trades) == 2
@@ -97,7 +175,11 @@ def test_build_trades_ticker_change():
     assert trade_1["closed_at"] is None
     assert trade_1["direction"] == "long"
     expected_first_links = [
-        {"execution_id": 1, "allocated_quantity": Decimal(10)},
+        {
+            "execution_id": 1,
+            "allocated_quantity": Decimal(10),
+            "allocated_commission": Decimal("2.50"),
+        },
     ]
     assert trade_1["links"] == expected_first_links
     trade_2 = trades[1]
@@ -105,5 +187,11 @@ def test_build_trades_ticker_change():
     assert trade_2["opened_at"] == time_2
     assert trade_2["closed_at"] is None
     assert trade_2["direction"] == "long"
-    expected_second_links = [{"execution_id": 2, "allocated_quantity": Decimal(5)}]
+    expected_second_links = [
+        {
+            "execution_id": 2,
+            "allocated_quantity": Decimal(5),
+            "allocated_commission": Decimal("2.50"),
+        }
+    ]
     assert trade_2["links"] == expected_second_links

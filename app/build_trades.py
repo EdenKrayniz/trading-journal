@@ -47,7 +47,10 @@ def build_trades(executions):
     open_trade = None
     position = 0
     previous_ticker = None
+    prices = {}
     for execution in executions:
+        # Links hold only the execution id, so prices are kept by id for the totals.
+        prices[execution["id"]] = execution["price"]
         if execution["ticker"] != previous_ticker:
             if open_trade is not None:
                 trades.append(open_trade)
@@ -88,4 +91,37 @@ def build_trades(executions):
     # comes after it to move it to the list.
     if open_trade is not None:
         trades.append(open_trade)
+    # Totals are computed once every trade has all its links,
+    # including the last open one.
+    for trade in trades:
+        entry_quantity = 0
+        exit_quantity = 0
+        total_entry_value = 0
+        total_exit_value = 0
+        for link in trade["links"]:
+            execution_id = link["execution_id"]
+            # An entry moves the position away from zero: a buy in a long trade,
+            # a sell in a short one. Everything else is an exit.
+            if (trade["direction"] == "long" and link["allocated_quantity"] > 0) or (
+                trade["direction"] == "short" and link["allocated_quantity"] < 0
+            ):
+                entry_quantity += abs(link["allocated_quantity"])
+                total_entry_value += prices[execution_id] * abs(
+                    link["allocated_quantity"]
+                )
+            else:
+                exit_quantity += abs(link["allocated_quantity"])
+                total_exit_value += prices[execution_id] * abs(
+                    link["allocated_quantity"]
+                )
+        trade["quantity"] = entry_quantity
+        # Not rounded, so quantity times the gap between the averages
+        # gives the exact profit.
+        trade["avg_entry_price"] = total_entry_value / entry_quantity
+        # Exit quantity, not closed_at: a partly sold open trade
+        # already has an exit price.
+        if exit_quantity != 0:
+            trade["avg_exit_price"] = total_exit_value / exit_quantity
+        else:
+            trade["avg_exit_price"] = None
     return trades

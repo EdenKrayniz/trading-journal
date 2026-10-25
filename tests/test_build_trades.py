@@ -237,7 +237,7 @@ def test_build_trades_partial_exit():
             "quantity": Decimal(-4),
             "commission": Decimal("2.50"),
             "price": Decimal(110),
-        }
+        },
     ]
     trades = build_trades(executions)
     assert len(trades) == 1
@@ -259,6 +259,6 @@ def test_build_trades_partial_exit():
             "execution_id": 2,
             "allocated_quantity": Decimal(-4),
             "allocated_commission": Decimal("2.50"),
-        }
+        },
     ]
     assert trade["links"] == expected_links

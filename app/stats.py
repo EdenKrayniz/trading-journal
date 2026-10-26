@@ -1,20 +1,20 @@
-"""Return a trade's realized profit after commissions, from its exits so far."""
+"""Statistics computed from built trades."""
+
+from app.build_trades import is_entry
 
 
 def compute_realized_profit(trade):
+    """Return a trade's realized profit after commissions, from its exits so far."""
     exit_commission = 0
     entry_commission = 0
     exit_quantity = 0
+    # Sum from the links what the trades table doesn't store. An exit moves
     for link in trade["links"]:
-        # Sum from the links what the trades table doesn't store. An exit moves
-        # the position toward zero: a sell in a long trade, a buy in a short one.
-        if (trade["direction"] == "long" and link["allocated_quantity"] < 0) or (
-            trade["direction"] == "short" and link["allocated_quantity"] > 0
-        ):
+        if is_entry(trade["direction"], link["allocated_quantity"]):
+            entry_commission += link["allocated_commission"]
+        else:
             exit_quantity += abs(link["allocated_quantity"])
             exit_commission += link["allocated_commission"]
-        else:
-            entry_commission += link["allocated_commission"]
     # No exits yet means nothing is realized. Checked first, because
     # avg_exit_price is None until the first exit.
     if exit_quantity == 0:

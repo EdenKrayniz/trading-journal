@@ -51,6 +51,15 @@ def make_trade(execution, quantity, commission):
     return trade
 
 
+def is_entry(direction, allocated_quantity):
+    """Return True if a link is an entry, False if it is an exit."""
+    # An entry moves the position away from zero: a buy in a long trade,
+    # a sell in a short one.
+    return (direction == "long" and allocated_quantity > 0) or (
+        direction == "short" and allocated_quantity < 0
+    )
+
+
 def build_trades(executions):
     """Build trades from executions sorted by ticker, then time."""
     trades = []
@@ -112,9 +121,7 @@ def build_trades(executions):
             execution_id = link["execution_id"]
             # An entry moves the position away from zero: a buy in a long trade,
             # a sell in a short one. Everything else is an exit.
-            if (trade["direction"] == "long" and link["allocated_quantity"] > 0) or (
-                trade["direction"] == "short" and link["allocated_quantity"] < 0
-            ):
+            if is_entry(trade["direction"], link["allocated_quantity"]):
                 entry_quantity += abs(link["allocated_quantity"])
                 total_entry_value += prices[execution_id] * abs(
                     link["allocated_quantity"]

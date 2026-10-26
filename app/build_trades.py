@@ -1,4 +1,14 @@
+"""Build trades from executions.
+
+Run from the project root to rebuild the trades tables from the executions table:
+    uv run --env-file .env python -m app.build_trades
+"""
+
+import os
 from decimal import ROUND_HALF_UP, Decimal
+
+import psycopg
+from psycopg.rows import dict_row
 
 
 def split_commission(allocated_quantity, quantity, commission):
@@ -125,3 +135,70 @@ def build_trades(executions):
         else:
             trade["avg_exit_price"] = None
     return trades
+
+
+# Rebuild only when this file is executed directly, so tests can import
+# build_trades without a database.
+if __name__ == "__main__":
+    # One transaction: if any insert fails, the delete is undone too,
+    # and the old trades stay.
+    with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row) as conn:
+        executions = conn.execute(
+            """SELECT id, ticker, executed_at, quantity, price, commission
+            FROM executions
+            ORDER BY ticker, executed_at, broker_exec_id;
+            """
+        ).fetchall()
+        trades = build_trades(executions)
+        # Trades are derived, so they are rebuilt from scratch, and their links
+        # go with them. Notes are kept: they link by ticker and opened_at, not id.
+        conn.execute("DELETE FROM trades;")
+        for trade in trades:
+            inserted_trade = conn.execute(
+                """
+                INSERT INTO trades (
+                    ticker,
+                    opened_at,
+                    closed_at,
+                    direction,
+                    quantity,
+                    avg_entry_price,
+                    avg_exit_price
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s
+                )
+                RETURNING id;
+                """,
+                (
+                    trade["ticker"],
+                    trade["opened_at"],
+                    trade["closed_at"],
+                    trade["direction"],
+                    trade["quantity"],
+                    trade["avg_entry_price"],
+                    trade["avg_exit_price"],
+                ),
+            ).fetchone()
+            # The id is created by the database, and the links need it.
+            trade_id = inserted_trade["id"]
+            for trade_link in trade["links"]:
+                conn.execute(
+                    """
+                    INSERT INTO trade_executions (
+                        trade_id,
+                        execution_id,
+                        allocated_quantity,
+                        allocated_commission
+                    ) VALUES (
+                        %s, %s, %s, %s
+                    )
+                    """,
+                    (
+                        trade_id,
+                        trade_link["execution_id"],
+                        trade_link["allocated_quantity"],
+                        trade_link["allocated_commission"],
+                    ),
+                )
+    # Printed after the block, because rows are saved only when it ends.
+    print(f"{len(trades)} trades saved.")

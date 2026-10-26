@@ -68,14 +68,21 @@ Create an Activity Flex Query with:
 
 - Section: Trades, with the Execution option (one row per execution)
 - Fields: AssetClass, IBCommission, TradePrice, Symbol, CurrencyPrimary,
-  DateTime, Quantity, IBExecID
+  DateTime, Quantity, IBExecID, FifoPnlRealized
 - Format: CSV
 - Period: Last 365 Calendar Days
 - Date and time: keep the defaults (date `yyyyMMdd`, time `HHmmss`,
   separator `;`), because the importer parses exactly that format
 
-The importer reads every field above by name. If one is missing, it stops with a
-KeyError and nothing from the file is saved.
+The importer reads every field above by name, except `FifoPnlRealized`. If one
+is missing, it stops with a KeyError and nothing from the file is saved.
+
+`FifoPnlRealized` is not imported. It is the broker's realized profit for each
+execution, used only to check the profit the system computes. The system
+computes realized profit itself, from its own tables: the broker matches each
+sell to the earliest buy, per execution, while the system works per trade, from
+average prices. On a closed trade both give the same total. The system also
+should not depend on a field that only this broker provides.
 
 ### Download and store the report
 
@@ -100,3 +107,51 @@ file into the terminal window.
 - The whole file is one transaction: if any row fails, nothing from the file is
   saved. Fix the problem and run the same file again.
 - At the end, the importer prints how many new executions were added.
+
+## Building trades
+
+`app/build_trades.py` turns executions into trades, flat to flat, per ticker
+(see Design). It writes two tables:
+
+- `trades`: one row per trade, with direction, quantity (all shares that
+  entered the trade), and average entry and exit prices. The averages are
+  weighted by quantity and not rounded.
+- `trade_executions`: which executions make up each trade, with the quantity
+  and commission allocated to it. An execution that crosses zero is split
+  between the closing trade and the new one. Its commission is split by
+  quantity: the first part is rounded to cents, and the second gets the
+  remainder, so the parts always sum to the full commission.
+
+Trades are derived data, so every run rebuilds them from scratch: it deletes
+all trades, and their links are deleted with them, then inserts the new ones.
+All in one transaction, so a failed run leaves the old trades in place. Trade
+notes are not affected, because they link by ticker + opened_at (see Design).
+
+Realized profit is not stored. For a closed trade it is quantity times the gap
+between the average prices, minus the allocated commissions. It was checked
+against the broker's `FifoPnlRealized` on real trades and matched to the cent.
+
+### Run the trade build
+
+Run it after every import, so the trades match the executions:
+
+```
+uv run --env-file .env python -m app.build_trades
+```
+
+### Run on the live database
+
+From the Mac, in a new terminal window. When `read -s` waits, paste the direct
+connection URL from the Neon console (the Connect button). `read -s` keeps the
+URL out of the shell history, and there is no `--env-file`, so the programs get
+only the live URL:
+
+```
+read -s DATABASE_URL
+export DATABASE_URL
+uv run python -m app.import_executions ~/Documents/trading-data/<report>.csv
+uv run python -m app.build_trades
+```
+
+Close the window afterwards, so no later command runs against the live database
+by mistake.
